@@ -1,0 +1,51 @@
+library(tidyverse)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+canada <- ne_states(country = "Canada", returnclass = "sf")
+
+newfoundland <- canada[canada$name == "Newfoundland and Labrador", ]
+
+nfl_parts <- st_cast(newfoundland, "POLYGON")
+
+nfl_parts$area <- st_area(nfl_parts)
+
+nfl_parts <- nfl_parts %>% arrange(desc(area))
+
+nf_polygon <- nfl_parts[2,] %>% select(geometry)
+
+st_write(nf_polygon, "data/nf_polygon.gpkg")
+
+nf_proj <- st_transform(nf_polygon, crs = 26922) 
+
+area <- st_area(nf_proj)
+
+cell_area <- as.numeric(area) / 80
+cell_size <- sqrt(cell_area)  # This gives you cell size in meters
+
+grid <- st_make_grid(nf_proj, cellsize = cell_size, square = TRUE)
+
+grid <- st_as_sf(grid)
+
+grid_clipped <- st_intersection(grid, nf_proj)
+
+grid_clipped <- st_transform(grid_clipped, crs = 4326)
+
+n_grids <- nrow(grid_clipped)
+
+centroids <- st_centroid(grid_clipped)
+
+centroids <- st_transform(centroids, crs = 4326)
+
+centroid_coords <- st_coordinates(centroids)
+
+randys_sites <- read_csv("data/randys_sites_coords.csv")
+
+randys_sites_sf <- st_as_sf(randys_sites, coords = c("x", "y"), crs = 4326)
+
+plot(st_geometry(grid_clipped), border = 'blue')
+plot(centroids, add = TRUE, col = 'black', pch = 16)
+plot(randys_sites_sf, add = TRUE, col = "red", pch = 18)
+
+#check for historical climate data: https://github.com/paleolimbot/rclimateca, or obtain gridded data from https://worldclim.org/ and then plot a map
