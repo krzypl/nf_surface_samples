@@ -76,30 +76,41 @@ lakeID <- water_chemistry_red$LakeID
 field_data <- read_excel("data/nf_field_measurements.xlsx")
 
 field_data_2add <- field_data %>% 
-  select(lakeID, DO_percent, water_temperature)
+  select(lakeID, DO_percent) #nie uwzgledniam temperatury wody, bo jesli to robie, to mam oczywisty wplyw temperatury powietrza i sztucznie moj model wyjasnia duzo zmiennosci
 
 sediment_data <- read_excel("data/lake_sediment_data.xlsx")
 
-
+#zrezygnowalem z BoxCoxa, zeby indywidualnie dobrac transformacje
 water_chemistry_boxcox <- water_chemistry_red2 %>%
   left_join(field_data_2add, by = c("LakeID" = "lakeID")) %>% 
   left_join(sediment_data, by = c("LakeID" = "lakeID")) %>% 
-  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x))))
-
-lambdas <- water_chemistry_red2 %>%
-  summarise(across(-LakeID, BoxCox.lambda)) # to sa wartosci lambda, ktore zostaly wkorzystane do transformacji boxa-coxa
+#  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x))))
+  mutate(Na = log(Na),
+         K = log(K),
+         Ca = log(Ca),
+         Mg = log(Mg),
+         Fe = log(Fe),
+         Mn = log(Mn),
+         Zn = log(Zn),
+         Cl = log(Cl),
+         Turbidity = log(Turbidity),
+         Conductivity = log(Conductivity),
+         LOI950 = log(LOI950),
+         sand_grain = log(sand_grain+1))
 
 water_chemistry_red_distrib_plot_transformed <- water_chemistry_boxcox %>% 
-  pivot_longer(cols = Na:water_temperature, names_to = "variable", values_to = "value") %>%
+  pivot_longer(cols = Na:sand_grain, names_to = "variable", values_to = "value") %>%
   ggplot() +
   geom_histogram(aes(x = value)) +
-  facet_wrap(.~variable, scales = "free") #duzo lepiej wygladaja te rozklady teraz. nie jest idealnie, ale do PCA to sie nadaje
+  facet_wrap(.~variable, scales = "free") #duzo lepiej wygladaja te rozklady teraz dla zmiennych, ktore wykorzystuje w analizach. nie jest idealnie, ale do PCA to sie nadaje. pozosta
 
 
 water_chemistry_zscore <- water_chemistry_boxcox %>% 
   dplyr::select(!LakeID) %>% 
   mutate(across(everything(), ~ as.numeric(scale(.)))) %>% 
-  select(-c(hardness, `Hydroxide (as CaCO3)`, bicarbonate, anion_sum, cation_sum, ion_sum, carbonate)) #usuwam zmienne kolinearne
+  select(-c(hardness, `Hydroxide (as CaCO3)`, bicarbonate, anion_sum, cation_sum, ion_sum, carbonate, Cl, TOC)) #usuwam zmienne kolinearne; CLma bardzo silna korelacje z Na
+
+correlation_matrix_water_chemistry <- cor(water_chemistry_zscore)
   
 water_chemistry_pca <- rda(water_chemistry_zscore) 
 
@@ -139,4 +150,80 @@ water_chemistry_pca_plot <- ggplot() +
         panel.grid.major = element_line(color = "grey80", linewidth = 0.2)) +
   theme(legend.position = "right")
 
+#RDA ----
+
+elevation_gps <- read_excel("data/elevation_gps.xlsx")
+bedrock_geology <- read_csv("data/bedrock_geology_matrix.csv") %>% 
+  select(!geology_type)
+surface_geology <- read_csv("data/surface_geology_matrix.csv") %>% 
+  select(-c(geology_type, covered_bedrock))
+relief <- read_csv("data/relief.csv")
+relief$relief <- as.factor(relief$relief)
+temperatures_for_coring_sites <- read_csv("data/temperature_for_coring_sites.csv")
+
+x <- temperatures_for_coring_sites %>% select(summer_mean_temperature:july_temperature)
+cor(x) #nie jest niespodzianka, ze temperatury sa ze soba bardzo silnie skorelowane, dlatego do modelu wykorzystuje tylko srednia temperature lata
+
+env_data_prep <- elevation_gps %>% 
+  left_join(temperatures_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
+  select(lakeID, elevation, area_ha, summer_mean_temperature) %>% 
+  mutate(depth = field_data$maximum_measured_depth_m)
+
+env_data_raw_plot <- env_data_prep %>% 
+  pivot_longer(cols = elevation:depth,
+               names_to = "variable", values_to = "value") %>% 
+  ggplot() +
+  geom_histogram(aes(x = value)) +
+facet_wrap(.~variable, scales = "free")
+
+env_data <- env_data_prep %>%
+#  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x)))) %>% 
+  mutate(area_ha = log(area_ha),
+         depth = log(depth),
+         elevation = sqrt(elevation),
+         across(-1, ~ as.numeric(scale(.)))) %>% 
+  left_join(bedrock_geology, by = c("lakeID" = "lakeID")) %>% 
+  left_join(surface_geology, by = c("lakeID" = "lakeID")) %>% 
+  left_join(relief, by = c("lakeID" = "lakeID")) %>%
+  select(-lakeID)
+
+rda_all <- rda(water_chemistry_zscore ~ ., data = env_data)
+summary(rda_all)
+(R2a_all <- RsquareAdj(rda_all)$adj.r.squared)
+mod0 <- rda(water_chemistry_zscore ~ 1, data = env_data)
+
+set.seed(12)
+step_forward <- ordistep(mod0,
+                         scope = formula(rda_all),
+                         direction = "forward",
+                         permutations = how(nperm = 999) ) #forward selection retains carbonate, june_temperature, depth
+(RsquareAdj(step_forward)$adj.r.squared)  
+
+
+env_variables_forward_selected <- env_data %>% 
+  select(c(carbonate, june_temperature, depth))
+
+rda_fs <- rda(water_chemistry_zscore ~ ., data = env_variables_forward_selected)
+(R2a_all_fs <- RsquareAdj(rda_fs)$adj.r.squared)
+
+set.seed(12)
+all_anova_fs <- anova(rda_fs, permutations = 999)
+
+set.seed(12)
+all_anova_cca <- anova.cca(rda_fs, by = "axis") #two axis significant
+
+set.seed(12)
+rda_carbonate <- rda(water_chemistry_zscore ~ carbonate + Condition(june_temperature, depth), data = env_variables_forward_selected)
+
+(R2a_carbonate_fs <- RsquareAdj(rda_carbonate)$adj.r.squared)
+
+set.seed(12)
+rda_jun_temp <- rda(water_chemistry_zscore ~ june_temperature + Condition(carbonate, depth), data = env_variables_forward_selected)
+
+(R2a_jun_temp_fs <- RsquareAdj(rda_jun_temp)$adj.r.squared)
+
+set.seed(12)
+rda_depth <- rda(water_chemistry_zscore ~ depth + Condition(june_temperature, carbonate), data = env_variables_forward_selected)
+
+(R2a_depth_fs <- RsquareAdj(rda_depth)$adj.r.squared)
 

@@ -93,7 +93,7 @@ ggplot(relief, aes(x = relief)) +
 
 write_csv(relief, "data/relief.csv")
 
-#elevetion ----
+#elevation ----
 
 cores_coordinates_sf <- st_as_sf(cores_coordinates, coords = c("longitude_core", "latitude_core"), crs = 4326) 
 
@@ -102,12 +102,12 @@ elev <- get_elev_point(cores_coordinates_sf, src = "aws")
 ggplot(elev, aes(x = elevation)) +
   geom_histogram()
 
-elevetion_gps <- read_excel("data/elevetion_gps.xlsx") #tutaj sa tez dane dla powierzchni jezior
+elevation_gps <- read_excel("data/elevation_gps.xlsx") #tutaj sa tez dane dla powierzchni jezior
 
-ggplot(elevetion_gps, aes(x = elevetion)) +
+ggplot(elevation_gps, aes(x = elevation)) +
   geom_histogram()
 
-xy <- tibble(gps = elevetion_gps$elevetion,
+xy <- tibble(gps = elevation_gps$elevation,
              srtm = elev$elevation
                )
 
@@ -115,7 +115,7 @@ ggplot(xy, aes(x = gps, y = srtm)) +
   geom_point() +
   geom_smooth(method = "lm")
 
-plot(elev$elevation, elevetion_gps$elevetion)
+plot(elev$elevation, elevation_gps$elevation)
 
 
 #jest troche roznica pomiedzy tym, co pokazuja dane z gpsa i tym co pokazuja dane z srtm. ale to nie sa jakies diametralne rozjady, ogolny obraz sie zgadza. Dla SRTM sa wartosci ujemne i dlatego mysle, ze powininem wziac z gps.
