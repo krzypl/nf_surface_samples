@@ -80,6 +80,8 @@ field_data_2add <- field_data %>%
 
 sediment_data <- read_excel("data/lake_sediment_data.xlsx")
 
+
+
 #zrezygnowalem z BoxCoxa, zeby indywidualnie dobrac transformacje
 water_chemistry_boxcox <- water_chemistry_red2 %>%
   left_join(field_data_2add, by = c("LakeID" = "lakeID")) %>% 
@@ -105,10 +107,14 @@ water_chemistry_red_distrib_plot_transformed <- water_chemistry_boxcox %>%
   facet_wrap(.~variable, scales = "free") #duzo lepiej wygladaja te rozklady teraz dla zmiennych, ktore wykorzystuje w analizach. nie jest idealnie, ale do PCA to sie nadaje. pozosta
 
 
-water_chemistry_zscore <- water_chemistry_boxcox %>% 
-  dplyr::select(!LakeID) %>% 
-  mutate(across(everything(), ~ as.numeric(scale(.)))) %>% 
+water_chemistry_zscore_prep <- water_chemistry_boxcox %>%
   select(-c(hardness, `Hydroxide (as CaCO3)`, bicarbonate, anion_sum, cation_sum, ion_sum, carbonate, Cl, TOC)) #usuwam zmienne kolinearne; CLma bardzo silna korelacje z Na
+
+write_rds(water_chemistry_zscore_prep, "data/water_chemistry_for_ordinations.rds")
+
+water_chemistry_zscore <- water_chemistry_zscore_prep %>% 
+  dplyr::select(!LakeID) %>% 
+  mutate(across(everything(), ~ as.numeric(scale(.))))
 
 correlation_matrix_water_chemistry <- cor(water_chemistry_zscore)
   
@@ -148,25 +154,35 @@ water_chemistry_pca_plot <- ggplot() +
   geom_hline(yintercept = 0, color = 'black', linewidth = 0.6,linetype=2) +
   theme(legend.position = "bottom", panel.background = element_rect(fill = "white", colour = "grey50"),
         panel.grid.major = element_line(color = "grey80", linewidth = 0.2)) +
-  theme(legend.position = "right")
+  theme(legend.position = "right") +
+  coord_fixed()
 
 #RDA ----
 
-elevation_gps <- read_excel("data/elevation_gps.xlsx")
+elevation_gps <- read_excel("data/elevation_gps.xlsx") %>% 
+  rename(dtto = distance_to_the_ocean)
 bedrock_geology <- read_csv("data/bedrock_geology_matrix.csv") %>% 
   select(!geology_type)
 surface_geology <- read_csv("data/surface_geology_matrix.csv") %>% 
   select(-c(geology_type, covered_bedrock))
+ecoregions <- read_csv("data/ecoregions_matrix.csv")
+spatial_factors <- read_csv("data/spatial_factors.csv")
+  
 relief <- read_csv("data/relief.csv")
 relief$relief <- as.factor(relief$relief)
 temperatures_for_coring_sites <- read_csv("data/temperature_for_coring_sites.csv")
+winter_temperatures_for_coring_sites <- read_csv("data/winter_temperature_for_coring_sites.csv")
 
 x <- temperatures_for_coring_sites %>% select(summer_mean_temperature:july_temperature)
 cor(x) #nie jest niespodzianka, ze temperatury sa ze soba bardzo silnie skorelowane, dlatego do modelu wykorzystuje tylko srednia temperature lata
 
+x <- winter_temperatures_for_coring_sites %>% select(winter_mean_temperature:december_temperature)
+cor(x)
+
 env_data_prep <- elevation_gps %>% 
   left_join(temperatures_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
-  select(lakeID, elevation, area_ha, summer_mean_temperature) %>% 
+  left_join(winter_temperatures_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
+  select(lakeID, elevation, dtto, area_ha, summer_mean_temperature, winter_mean_temperature) %>% 
   mutate(depth = field_data$maximum_measured_depth_m)
 
 env_data_raw_plot <- env_data_prep %>% 
@@ -180,10 +196,15 @@ env_data <- env_data_prep %>%
 #  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x)))) %>% 
   mutate(area_ha = log(area_ha),
          depth = log(depth),
+         dtto = log(dtto),
          elevation = sqrt(elevation),
+         temp_amplitude =temperatures_for_coring_sites$july_temperature -
+           winter_temperatures_for_coring_sites$january_temperature,
          across(-1, ~ as.numeric(scale(.)))) %>% 
   left_join(bedrock_geology, by = c("lakeID" = "lakeID")) %>% 
   left_join(surface_geology, by = c("lakeID" = "lakeID")) %>% 
+  left_join(ecoregions, by = c("lakeID" = "lakeID")) %>% 
+  left_join(spatial_factors, by = c("lakeID" = "lakeID")) %>% 
   left_join(relief, by = c("lakeID" = "lakeID")) %>%
   select(-lakeID)
 
@@ -201,7 +222,8 @@ step_forward <- ordistep(mod0,
 
 
 env_variables_forward_selected <- env_data %>% 
-  select(c(carbonate, june_temperature, depth))
+  select(c(carbonate, ycoordinate, area_ha, xcoordinate, MEM_broad, MEM_fine,
+           `Northern Peninsula Forest`, `Maritime Barrens`, `Eastern Hyper-Oceanic Barrens`, bog))
 
 rda_fs <- rda(water_chemistry_zscore ~ ., data = env_variables_forward_selected)
 (R2a_all_fs <- RsquareAdj(rda_fs)$adj.r.squared)
@@ -213,17 +235,83 @@ set.seed(12)
 all_anova_cca <- anova.cca(rda_fs, by = "axis") #two axis significant
 
 set.seed(12)
-rda_carbonate <- rda(water_chemistry_zscore ~ carbonate + Condition(june_temperature, depth), data = env_variables_forward_selected)
+rda_carbonate <- rda(water_chemistry_zscore ~ carbonate + Condition(ycoordinate + area_ha + xcoordinate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
 
 (R2a_carbonate_fs <- RsquareAdj(rda_carbonate)$adj.r.squared)
 
 set.seed(12)
-rda_jun_temp <- rda(water_chemistry_zscore ~ june_temperature + Condition(carbonate, depth), data = env_variables_forward_selected)
-
-(R2a_jun_temp_fs <- RsquareAdj(rda_jun_temp)$adj.r.squared)
+carbonate_anova_fs <- anova(rda_carbonate, permutations = 999)
 
 set.seed(12)
-rda_depth <- rda(water_chemistry_zscore ~ depth + Condition(june_temperature, carbonate), data = env_variables_forward_selected)
+rda_xy_coordinate <- rda(water_chemistry_zscore ~ ycoordinate + xcoordinate + Condition(carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
 
-(R2a_depth_fs <- RsquareAdj(rda_depth)$adj.r.squared)
+(R2a_xy_coordinate_fs <- RsquareAdj(rda_xy_coordinate)$adj.r.squared)
 
+set.seed(12)
+xy_coordinate_anova_fs <- anova(rda_xy_coordinate, permutations = 999)
+
+set.seed(12)
+rda_area <- rda(water_chemistry_zscore ~ area_ha + Condition(ycoordinate + xcoordinate + carbonate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+
+(R2a_area_fs <- RsquareAdj(rda_area)$adj.r.squared)
+
+set.seed(12)
+area_anova_fs <- anova(rda_area, permutations = 999)
+
+set.seed(12)
+rda_MEM_broad <- rda(water_chemistry_zscore ~ MEM_broad + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+
+(R2a_MEM_broad_fs <- RsquareAdj(rda_MEM_broad)$adj.r.squared)
+
+set.seed(12)
+MEM_broad_anova_fs <- anova(rda_MEM_broad, permutations = 999)
+
+set.seed(12)
+rda_MEM_fine <- rda(water_chemistry_zscore ~ MEM_fine + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+
+(R2a_MEM_fine_fs <- RsquareAdj(rda_MEM_fine)$adj.r.squared)
+
+set.seed(12)
+MEM_fine_anova_fs <- anova(rda_MEM_fine, permutations = 999)
+
+set.seed(12)
+rda_np_forest <- rda(water_chemistry_zscore ~ `Northern Peninsula Forest` + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+
+(R2a_np_forest_fs <- RsquareAdj(rda_np_forest)$adj.r.squared)
+
+set.seed(12)
+np_forest_anova_fs <- anova(rda_np_forest, permutations = 999)
+
+set.seed(12)
+rda_barrens <- rda(water_chemistry_zscore ~ `Maritime Barrens` + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+
+(R2a_barrens_fs <- RsquareAdj(rda_barrens)$adj.r.squared)
+
+set.seed(12)
+barrens_anova_fs <- anova(rda_barrens, permutations = 999)
+
+set.seed(12)
+rda_bog <- rda(water_chemistry_zscore ~ bog + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Eastern Hyper-Oceanic Barrens` + `Maritime Barrens`), data = env_variables_forward_selected)
+
+(R2a_bog_fs <- RsquareAdj(rda_bog)$adj.r.squared)
+
+set.seed(12)
+bog_anova_fs <- anova(rda_bog, permutations = 999)
+
+#partial RDA column plot -----
+rda_tprep <- tibble(
+  "Carbonate" = c(R2a_carbonate_fs, carbonate_anova_fs$`Pr(>F)`[[1]]),
+  "XY_trend" = c(R2a_xy_coordinate_fs, xy_coordinate_anova_fs$`Pr(>F)`[[1]]),
+  "MEM_broad " = c(R2a_MEM_broad_fs, MEM_broad_anova_fs$`Pr(>F)`[[1]]),
+  "MEM_fine" = c(R2a_MEM_fine_fs, MEM_fine_anova_fs$`Pr(>F)`[[1]]),
+  "NP_forest" = c(R2a_np_forest_fs, np_forest_anova_fs$`Pr(>F)`[[1]]),
+  "Barrens" = c(R2a_barrens_fs, barrens_anova_fs$`Pr(>F)`[[1]]),
+  "Bog" = c(R2a_bog_fs, bog_anova_fs$`Pr(>F)`[[1]]),
+  "All" = c(R2a_all_fs, all_anova_fs$`Pr(>F)`[[1]]),
+  "Unexplained" = c(1 - R2a_all_fs, NA),
+  "Metric" = c("prop_of_var_explained", "pval")
+) %>% 
+  pivot_longer(cols = Carbonate:Unexplained, names_to = "variable", values_to = "value")
+
+prda_plot <- ggplot(filter(rda_tprep, Metric == "prop_of_var_explained")) +
+  geom_col(aes(x = variable, y = value))

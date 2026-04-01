@@ -1,3 +1,4 @@
+#remotes::install_github("HelgeJentsch/ClimDatDownloadR")
 library(ClimDatDownloadR)
 library(terra)
 library(sf)
@@ -182,3 +183,54 @@ combined_map_a <- tmap_arrange(summaer_mean_map_a, june_temp_map_a, july_temp_ma
 
 tmap_save(combined_map_a,
           filename = "figures/combined_map_season_a.png", width = 10, height = 8)
+
+#winter temperatures ----
+
+winter_temp <- summer_temp[c(1, 2, 12)]
+
+
+#ponizej wszystko dziala, ale zajmuje duzo czasu, wiec zapisalem plik i go odczytuje
+winter_stack <- rast(winter_temp)
+
+winter_mean <- mean(winter_stack)
+
+#temp_clip <- mask(crop(summer_mean, vect(nf_polygon)), vect(nf_polygon), touches = FALSE)
+winter_clip_large <- mask(crop(winter_mean, vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+winter_local_mean <- focal(winter_clip_large, w = 3, fun = mean, na.rm = TRUE)
+
+winter_clip_large_expand <- cover(winter_clip_large, winter_local_mean) #this is to give values for cells in coastal areas that have NAs. The values are means from 3x3 matrix; the non-NA values remains unchanged
+
+raster::writeRaster(winter_clip_large_expand, 
+                    filename = "data/winter_clip_large_expand.tif",
+                    overwrite = TRUE)
+
+temp_clip_large_january <- mask(crop(winter_temp[[1]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_mean_january <- focal(temp_clip_large_january, w = 3, fun = mean, na.rm = TRUE)
+
+temp_clip_large_expand_january <- cover(temp_clip_large_january, local_mean_january) 
+
+raster::writeRaster(temp_clip_large_expand_january, 
+                    filename = "data/temp_clip_large_expand_january.tif",
+                    overwrite = TRUE)
+
+temp_clip_large_february <- mask(crop(winter_temp[[2]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_mean_february <- focal(temp_clip_large_february, w = 3, fun = mean, na.rm = TRUE)
+
+temp_clip_large_expand_february <- cover(temp_clip_large_february, local_mean_february) 
+
+raster::writeRaster(temp_clip_large_expand_february, 
+                    filename = "data/temp_clip_large_expand_february.tif",
+                    overwrite = TRUE)
+
+temp_clip_large_december <- mask(crop(winter_temp[[3]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_mean_december <- focal(temp_clip_large_december, w = 3, fun = mean, na.rm = TRUE)
+
+temp_clip_large_expand_december <- cover(temp_clip_large_december, local_mean_december) 
+
+raster::writeRaster(temp_clip_large_expand_december, 
+                    filename = "data/temp_clip_large_expand_december.tif",
+                    overwrite = TRUE)
