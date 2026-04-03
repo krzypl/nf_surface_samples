@@ -21,15 +21,15 @@ library(tmap)
 
 # files <- list.files("data/temp/WorldClim_2.1_tavg_2.5m/clipped_2025-06-18_13-27-34", full.names = TRUE)
 
-files <- list.files("data/map_raw", full.names = TRUE)
+files <- list.files("data/map_raw_temperature", full.names = TRUE)
 
-summer_temp <- vector("list", length = 12)
+temp <- vector("list", length = 12)
 
-for (i in seq_along(summer_temp)) {
-  summer_temp[[i]] <- rast(files[i])
+for (i in seq_along(temp)) {
+  temp[[i]] <- rast(files[i])
 }
 
-summer_temp <- summer_temp[6:8]
+summer_temp <- temp[6:8]
 
 
 #ponizej wszystko dziala, ale zajmuje duzo czasu, wiec zapisalem plik i go odczytuje
@@ -186,7 +186,7 @@ tmap_save(combined_map_a,
 
 #winter temperatures ----
 
-winter_temp <- summer_temp[c(1, 2, 12)]
+winter_temp <- temp[c(1, 2, 12)]
 
 
 #ponizej wszystko dziala, ale zajmuje duzo czasu, wiec zapisalem plik i go odczytuje
@@ -233,4 +233,137 @@ temp_clip_large_expand_december <- cover(temp_clip_large_december, local_mean_de
 
 raster::writeRaster(temp_clip_large_expand_december, 
                     filename = "data/temp_clip_large_expand_december.tif",
+                    overwrite = TRUE)
+
+#precipitation ----
+
+# WorldClim.HistClim.download(
+#   save.location = "./data",
+#   parameter = c("prec"),
+#   month.var = c(1:12),
+#   resolution = "2.5m",
+#   version.var = "2.1",
+#   clipping = TRUE,
+#   clip.extent = c(-60,-52, 46, 52),
+#   convert.files.to.asc = FALSE,
+#   stacking.data = FALSE,
+#   keep.raw.zip = FALSE,
+#   delete.raw.data = FALSE,
+#   save.bib.file = TRUE
+# )
+
+
+files <- list.files("data/map_raw_precipitation", full.names = TRUE)
+
+prec <- vector("list", length = 12)
+
+for (i in seq_along(prec)) {
+  prec[[i]] <- rast(files[i])
+}
+
+summer_prec <- prec[6:8]
+
+
+#ponizej wszystko dziala, ale zajmuje duzo czasu, wiec zapisalem plik i go odczytuje
+summer_stack <- rast(summer_prec)
+
+summer_sum <- sum(summer_stack)
+
+prec_clip <- mask(crop(summer_sum, vect(nf_polygon)), vect(nf_polygon), touches = FALSE)
+prec_clip_large_prec <- mask(crop(summer_sum, vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum <- focal(prec_clip_large_prec, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_prec <- cover(prec_clip_large_prec, local_sum) #this is to give values for cells in coastal areas that have NAs. The values are sums from 3x3 matrix; the non-NA values remains unchanged
+
+raster::writeRaster(prec_clip_large_expand_prec, 
+                    filename = "data/prec_clip_large_expand_prec.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_june <- mask(crop(summer_prec[[1]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_june <- focal(prec_clip_large_june, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_june <- cover(prec_clip_large_june, local_sum_june) 
+
+raster::writeRaster(prec_clip_large_expand_june, 
+                    filename = "data/prec_clip_large_expand_june.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_july <- mask(crop(summer_prec[[2]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_july <- focal(prec_clip_large_july, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_july <- cover(prec_clip_large_july, local_sum_july) 
+
+raster::writeRaster(prec_clip_large_expand_july, 
+                    filename = "data/prec_clip_large_expand_july.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_august <- mask(crop(summer_prec[[3]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_august <- focal(prec_clip_large_august, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_august <- cover(prec_clip_large_august, local_sum_august) 
+
+raster::writeRaster(prec_clip_large_expand_august, 
+                    filename = "data/prec_clip_large_expand_august.tif",
+                    overwrite = TRUE)
+
+raster::writeRaster(prec_clip, filename = "data/prec_clip.tif", overwrite = TRUE)
+
+prec_clip <- rast("data/prec_clip.tif")
+
+#prec_clip_large <- rast("data/prec_clip_large.tif")
+
+
+#winter prec ----
+
+winter_prec <- prec[c(1, 2, 12)]
+
+
+#ponizej wszystko dziala, ale zajmuje duzo czasu, wiec zapisalem plik i go odczytuje
+winter_stack <- rast(winter_prec)
+
+winter_sum <- sum(winter_stack)
+
+#prec_clip <- mask(crop(summer_sum, vect(nf_polygon)), vect(nf_polygon), touches = FALSE)
+winter_clip_large_prec <- mask(crop(winter_sum, vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+winter_local_sum <- focal(winter_clip_large_prec, w = 3, fun = sum, na.rm = TRUE)
+
+winter_clip_large_expand_prec <- cover(winter_clip_large_prec, winter_local_sum) #this is to give values for cells in coastal areas that have NAs. The values are sums from 3x3 matrix; the non-NA values remains unchanged
+
+raster::writeRaster(winter_clip_large_expand_prec, 
+                    filename = "data/winter_clip_large_expand_prec.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_january <- mask(crop(winter_prec[[1]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_january <- focal(prec_clip_large_january, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_january <- cover(prec_clip_large_january, local_sum_january) 
+
+raster::writeRaster(prec_clip_large_expand_january, 
+                    filename = "data/prec_clip_large_expand_january.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_february <- mask(crop(winter_prec[[2]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_february <- focal(prec_clip_large_february, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_february <- cover(prec_clip_large_february, local_sum_february) 
+
+raster::writeRaster(prec_clip_large_expand_february, 
+                    filename = "data/prec_clip_large_expand_february.tif",
+                    overwrite = TRUE)
+
+prec_clip_large_december <- mask(crop(winter_prec[[3]], vect(nf_polygon_large)), vect(nf_polygon_large), touches = TRUE)
+
+local_sum_december <- focal(prec_clip_large_december, w = 3, fun = sum, na.rm = TRUE)
+
+prec_clip_large_expand_december <- cover(prec_clip_large_december, local_sum_december) 
+
+raster::writeRaster(prec_clip_large_expand_december, 
+                    filename = "data/prec_clip_large_expand_december.tif",
                     overwrite = TRUE)

@@ -134,6 +134,8 @@ water_chemistry_ve_prep <- water_chemistry_pca$CA$eig / water_chemistry_pca$tot.
 (water_chemistry_PC1_ve <- round(((water_chemistry_ve_prep / sum(water_chemistry_ve_prep))[c(1)]) * 100, digits = 1))
 (water_chemistry_PC2_ve <- round(((water_chemistry_ve_prep / sum(water_chemistry_ve_prep))[c(2)]) * 100, digits = 1))
 
+#PCA biplot ----
+
 water_chemistry_pca_plot <- ggplot() +
   labs(y = paste("PC2 (", water_chemistry_PC2_ve, "%)", sep = ""), x = paste("PC1 (", water_chemistry_PC1_ve, "%)", sep = ""), title = "PCA biplot for water chemistry data") +
   geom_segment(data = water_chemistry_sp,
@@ -172,17 +174,18 @@ relief <- read_csv("data/relief.csv")
 relief$relief <- as.factor(relief$relief)
 temperatures_for_coring_sites <- read_csv("data/temperature_for_coring_sites.csv")
 winter_temperatures_for_coring_sites <- read_csv("data/winter_temperature_for_coring_sites.csv")
+precipitation_for_coring_sites <- read_csv("data/precipitation_for_coring_sites.csv")
+winter_precipitation_for_coring_sites <- read_csv("data/winter_precipitation_for_coring_sites.csv")
 
 x <- temperatures_for_coring_sites %>% select(summer_mean_temperature:july_temperature)
 cor(x) #nie jest niespodzianka, ze temperatury sa ze soba bardzo silnie skorelowane, dlatego do modelu wykorzystuje tylko srednia temperature lata
 
-x <- winter_temperatures_for_coring_sites %>% select(winter_mean_temperature:december_temperature)
-cor(x)
-
 env_data_prep <- elevation_gps %>% 
   left_join(temperatures_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
   left_join(winter_temperatures_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
-  select(lakeID, elevation, dtto, area_ha, summer_mean_temperature, winter_mean_temperature) %>% 
+  left_join(precipitation_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
+  left_join(winter_precipitation_for_coring_sites, by = c("lakeID" = "lakeID")) %>% 
+  select(lakeID, elevation, dtto, area_ha, summer_mean_temperature, winter_mean_temperature, summer_sum_precipitation, winter_sum_precipitation) %>% 
   mutate(depth = field_data$maximum_measured_depth_m)
 
 env_data_raw_plot <- env_data_prep %>% 
@@ -222,8 +225,8 @@ step_forward <- ordistep(mod0,
 
 
 env_variables_forward_selected <- env_data %>% 
-  select(c(carbonate, ycoordinate, area_ha, xcoordinate, MEM_broad, MEM_fine,
-           `Northern Peninsula Forest`, `Maritime Barrens`, `Eastern Hyper-Oceanic Barrens`, bog))
+  select(c(carbonate, ycoordinate, depth, xcoordinate, MEM_broad, MEM_fine,
+           `Northern Peninsula Forest`, `Maritime Barrens`, `Eastern Hyper-Oceanic Barrens`))
 
 rda_fs <- rda(water_chemistry_zscore ~ ., data = env_variables_forward_selected)
 (R2a_all_fs <- RsquareAdj(rda_fs)$adj.r.squared)
@@ -232,10 +235,10 @@ set.seed(12)
 all_anova_fs <- anova(rda_fs, permutations = 999)
 
 set.seed(12)
-all_anova_cca <- anova.cca(rda_fs, by = "axis") #two axis significant
+all_anova_cca <- anova.cca(rda_fs, by = "axis")
 
 set.seed(12)
-rda_carbonate <- rda(water_chemistry_zscore ~ carbonate + Condition(ycoordinate + area_ha + xcoordinate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_carbonate <- rda(water_chemistry_zscore ~ carbonate + Condition(ycoordinate + depth + xcoordinate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
 (R2a_carbonate_fs <- RsquareAdj(rda_carbonate)$adj.r.squared)
 
@@ -243,7 +246,7 @@ set.seed(12)
 carbonate_anova_fs <- anova(rda_carbonate, permutations = 999)
 
 set.seed(12)
-rda_xy_coordinate <- rda(water_chemistry_zscore ~ ycoordinate + xcoordinate + Condition(carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_xy_coordinate <- rda(water_chemistry_zscore ~ ycoordinate + xcoordinate + Condition(carbonate + depth + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
 (R2a_xy_coordinate_fs <- RsquareAdj(rda_xy_coordinate)$adj.r.squared)
 
@@ -251,15 +254,15 @@ set.seed(12)
 xy_coordinate_anova_fs <- anova(rda_xy_coordinate, permutations = 999)
 
 set.seed(12)
-rda_area <- rda(water_chemistry_zscore ~ area_ha + Condition(ycoordinate + xcoordinate + carbonate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_depth <- rda(water_chemistry_zscore ~ depth + Condition(ycoordinate + xcoordinate + carbonate + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
-(R2a_area_fs <- RsquareAdj(rda_area)$adj.r.squared)
-
-set.seed(12)
-area_anova_fs <- anova(rda_area, permutations = 999)
+(R2a_depth_fs <- RsquareAdj(rda_depth)$adj.r.squared)
 
 set.seed(12)
-rda_MEM_broad <- rda(water_chemistry_zscore ~ MEM_broad + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+area_anova_fs <- anova(rda_depth, permutations = 999)
+
+set.seed(12)
+rda_MEM_broad <- rda(water_chemistry_zscore ~ MEM_broad + Condition(ycoordinate + xcoordinate + carbonate + depth + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
 (R2a_MEM_broad_fs <- RsquareAdj(rda_MEM_broad)$adj.r.squared)
 
@@ -267,7 +270,7 @@ set.seed(12)
 MEM_broad_anova_fs <- anova(rda_MEM_broad, permutations = 999)
 
 set.seed(12)
-rda_MEM_fine <- rda(water_chemistry_zscore ~ MEM_fine + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_MEM_fine <- rda(water_chemistry_zscore ~ MEM_fine + Condition(ycoordinate + xcoordinate + carbonate + depth + MEM_broad + `Northern Peninsula Forest` + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
 (R2a_MEM_fine_fs <- RsquareAdj(rda_MEM_fine)$adj.r.squared)
 
@@ -275,7 +278,7 @@ set.seed(12)
 MEM_fine_anova_fs <- anova(rda_MEM_fine, permutations = 999)
 
 set.seed(12)
-rda_np_forest <- rda(water_chemistry_zscore ~ `Northern Peninsula Forest` + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_np_forest <- rda(water_chemistry_zscore ~ `Northern Peninsula Forest` + Condition(ycoordinate + xcoordinate + carbonate + depth + MEM_broad + MEM_fine + `Maritime Barrens` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
 (R2a_np_forest_fs <- RsquareAdj(rda_np_forest)$adj.r.squared)
 
@@ -283,20 +286,20 @@ set.seed(12)
 np_forest_anova_fs <- anova(rda_np_forest, permutations = 999)
 
 set.seed(12)
-rda_barrens <- rda(water_chemistry_zscore ~ `Maritime Barrens` + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Eastern Hyper-Oceanic Barrens` + bog), data = env_variables_forward_selected)
+rda_m_barrens <- rda(water_chemistry_zscore ~ `Maritime Barrens` + Condition(ycoordinate + xcoordinate + carbonate + depth + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Eastern Hyper-Oceanic Barrens`), data = env_variables_forward_selected)
 
-(R2a_barrens_fs <- RsquareAdj(rda_barrens)$adj.r.squared)
-
-set.seed(12)
-barrens_anova_fs <- anova(rda_barrens, permutations = 999)
+(R2a_m_barrens_fs <- RsquareAdj(rda_m_barrens)$adj.r.squared)
 
 set.seed(12)
-rda_bog <- rda(water_chemistry_zscore ~ bog + Condition(ycoordinate + xcoordinate + carbonate + area_ha + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Eastern Hyper-Oceanic Barrens` + `Maritime Barrens`), data = env_variables_forward_selected)
-
-(R2a_bog_fs <- RsquareAdj(rda_bog)$adj.r.squared)
+m_barrens_anova_fs <- anova(rda_m_barrens, permutations = 999)
 
 set.seed(12)
-bog_anova_fs <- anova(rda_bog, permutations = 999)
+rda_ho_barrens <- rda(water_chemistry_zscore ~ `Eastern Hyper-Oceanic Barrens` + Condition(ycoordinate + xcoordinate + carbonate + depth + MEM_broad + MEM_fine + `Northern Peninsula Forest` + `Maritime Barrens`), data = env_variables_forward_selected)
+
+(R2a_ho_barrens_fs <- RsquareAdj(rda_ho_barrens)$adj.r.squared)
+
+set.seed(12)
+ho_barrens_anova_fs <- anova(rda_ho_barrens, permutations = 999)
 
 #partial RDA column plot -----
 rda_tprep <- tibble(
@@ -305,8 +308,8 @@ rda_tprep <- tibble(
   "MEM_broad " = c(R2a_MEM_broad_fs, MEM_broad_anova_fs$`Pr(>F)`[[1]]),
   "MEM_fine" = c(R2a_MEM_fine_fs, MEM_fine_anova_fs$`Pr(>F)`[[1]]),
   "NP_forest" = c(R2a_np_forest_fs, np_forest_anova_fs$`Pr(>F)`[[1]]),
-  "Barrens" = c(R2a_barrens_fs, barrens_anova_fs$`Pr(>F)`[[1]]),
-  "Bog" = c(R2a_bog_fs, bog_anova_fs$`Pr(>F)`[[1]]),
+  "M_Barrens" = c(R2a_m_barrens_fs, m_barrens_anova_fs$`Pr(>F)`[[1]]),
+  "HO_Barrens" = c(R2a_ho_barrens_fs, ho_barrens_anova_fs$`Pr(>F)`[[1]]),
   "All" = c(R2a_all_fs, all_anova_fs$`Pr(>F)`[[1]]),
   "Unexplained" = c(1 - R2a_all_fs, NA),
   "Metric" = c("prop_of_var_explained", "pval")
@@ -315,3 +318,115 @@ rda_tprep <- tibble(
 
 prda_plot <- ggplot(filter(rda_tprep, Metric == "prop_of_var_explained")) +
   geom_col(aes(x = variable, y = value))
+
+
+#variation partitioning ----
+spatial_patterns <- env_variables_forward_selected %>% 
+  select(ycoordinate, xcoordinate, MEM_broad, MEM_fine)
+
+local_environment <- env_variables_forward_selected %>% 
+  select(carbonate, `Northern Peninsula Forest`, `Maritime Barrens`, `Eastern Hyper-Oceanic Barrens`)
+
+morphometric_paramters <- env_variables_forward_selected %>% 
+  select(depth)
+
+# climate <- env_data %>% 
+#   select(summer_mean_temperature, winter_mean_temperature)
+
+varpart_model <- varpart(
+  water_chemistry_zscore,
+  spatial_patterns,
+  local_environment,
+  morphometric_paramters
+#  climate
+)
+
+
+
+plot(
+  varpart_model,
+  bg = c("skyblue","orange","forestgreen"),
+  Xnames = c("Spatial patterns","Local environmant","Morphometric parameters"),
+  id.size = 1.2
+)
+
+
+#RDA biplot ----
+rda_fort <- fortify(rda_fs, axes(1,2), scaling = "species") # First and second axes
+
+rda_water_chemistry_sp <- rda_fort %>% 
+  filter(score == "species")
+
+rda_expl_var <- rda_fort %>% 
+  filter(score == "biplot")
+
+rda_ve_prep_sites <- rda_fort_sc_sites$CCA$eig / rda_fort_sc_sites$tot.chi*100
+(rda1_ve <- round(((rda_ve_prep / sum(rda_ve_prep))[c(1)] * R2a_all_fs) * 100, digits = 1))
+(rda2_ve <- round(((rda_ve_prep / sum(rda_ve_prep))[c(2)] * R2a_all_fs) * 100, digits = 1))
+
+rda_plot_vectors_only <- ggplot() +
+  labs(y = paste("RDA2 (", rda2_ve, "%)", sep = ""), 
+       x = paste("RDA1 (", rda1_ve, "%)", sep = "")) +
+  
+  geom_segment(data = rda_water_chemistry_sp ,
+               color = "red", linewidth = 0.4,
+               aes(x = 0, y = 0, xend = rda1, yend = rda2),
+               arrow = grid::arrow(length = grid::unit(0.20, "cm"))) +
+  
+  ggrepel::geom_text_repel(data = rda_water_chemistry_sp, color = "red",
+                           size = 4, segment.alpha = 0,
+                           aes(x = rda1, y = rda2, label = label, fontface = "italic"),
+                           max.overlaps = 30) +
+  
+  geom_segment(data = rda_expl_var,
+               color = "darkblue", linewidth = 1,
+               aes(x = 0, y = 0, xend = rda1, yend = rda2),
+               arrow = grid::arrow(length = grid::unit(0.20, "cm"))) +
+  
+  ggrepel::geom_text_repel(data = rda_expl_var, color = "darkblue",
+                           size = 5, segment.alpha = 0,
+                           aes(x = rda1, y = rda2, label = label)) +
+  
+  geom_vline(xintercept = 0, color = 'grey65', linewidth = 0.6, linetype = 2) + 
+  geom_hline(yintercept = 0, color = 'grey65', linewidth = 0.6, linetype = 2) +
+  
+  theme_bw() +
+  scale_size(range = 2) +
+  coord_equal()
+
+rda_fort_sc_sites <- fortify(rda_fs, axes(1,2), scaling = "sites")
+
+rda_sites_expl_var <- rda_fort_sc_sites %>% 
+  filter(score == "biplot")
+
+rda_sites <- rda_fort_sc_sites %>% 
+  filter(score == "sites")
+
+rda_plot_vectors_and_sites <- ggplot() +
+  labs(y = paste("RDA2 (", rda2_ve, "%)", sep = ""), 
+       x = paste("RDA1 (", rda1_ve, "%)", sep = "")) +
+  
+  geom_point(data = rda_sites,
+               color = "black",
+               aes(x = rda1, y = rda2)) +
+  
+  ggrepel::geom_text_repel(data = rda_sites, color = "black",
+                           size = 4, segment.alpha = 0,
+                           aes(x = rda1, y = rda2, label = lakeID),
+                           max.overlaps = 30) +
+  
+  geom_segment(data = rda_sites_expl_var,
+               color = "darkblue", linewidth = 1,
+               aes(x = 0, y = 0, xend = rda1, yend = rda2),
+               arrow = grid::arrow(length = grid::unit(0.20, "cm"))) +
+  
+  ggrepel::geom_text_repel(data = rda_sites_expl_var, color = "darkblue",
+                           size = 5, segment.alpha = 0,
+                           aes(x = rda1, y = rda2, label = label)) +
+  
+  geom_vline(xintercept = 0, color = 'grey65', linewidth = 0.6, linetype = 2) + 
+  geom_hline(yintercept = 0, color = 'grey65', linewidth = 0.6, linetype = 2) +
+  
+  theme_bw() +
+  scale_size(range = 2) +
+  coord_equal()

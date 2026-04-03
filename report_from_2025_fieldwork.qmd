@@ -1,0 +1,60 @@
+---
+title: "Report from 2025 fieldwork data"
+format: html
+editor: visual
+---
+#Fieldwork
+
+## Sediment sampling
+
+We sampled 70 lakes collecting two sediment cores from each labelled A and B. From each sediment core two slices of sediments were collected from depths 0-1 cm and 1-2 cm. From the core A, we collected samples for DNA analyses. These samples were collected from 0-1 cm and have volume of 5 cc. Additionally, for each DNA we took one blank.  
+
+Samples from core B 0-1 cm are in Fredericton. They will be used solely for chironomid analyses. Total volume is ~30 cc. Perhaps we will have leftovers from this.
+
+Samples from core A 0-1, 1-2, core B 1-2 cm, and DNA samples are in Poznań (DNA samples are kept frozen, and the rest in fridge). From this we have already done:\
+- LOI550 and 950 (core A 0-1cm)  
+- sand grain counting (core A 0-1cm)  
+
+Subsamples taken already for  analyses in the future according to the label on bags:  
+From core A 0-1 cm
+- Chiro1 (2 cc)  
+- Chiro2 (2 cc)  
+- pollen (1 cc) 
+- cladocera (1 cc)  
+- diatoms (1 cc)  
+- CNS  (1 cc)  
+- C and O isotopes (1 cc) 
+- N and C isotopoec (1 cc)
+
+From core A 1-2 cm  
+- pollen sulfur isotopes (20 cc)  
+
+Samples Chiro1 and Chiro2 combined with leftover from core A samples 0-1 cm (very little material left) can be uses for preparation of XRF samples (Chiro1 and Chiro2 were collected before samples from core B 0-1 cm were sent to Fredericton for chironomid analyses).  
+
+Apart from this we still have a lot of material from core B 1-2 cm as backup
+
+## Water sampling
+
+At coring sites, we took measurements with YSI instrument of water parameters. Two instruments were used; first was from Fredericton, second was from Poznań. For detail explanation of what was measured with what consult "fieldwaork_database.xlsx" file.
+
+Along with this, water samples were taken approximately at the depth of several tens of cm. These were all kept cold expcept perhaps of shipping time (approx. 2-3 days). The analyses were done in RCP in Fredericton. 
+
+
+TUTAJ DALEJ ZROBIC, NAJPIERW OPISAC, CO OPISYWALISMY W TERENIE, POTEM SAMA NALIZA DANYCH POPRZEDZONA MAPA.
+
+## 
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
