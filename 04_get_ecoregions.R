@@ -1,5 +1,7 @@
 library(tidyverse)
 library(sf)
+library(terra)
+library(tmap)
 
 #data source: https://www.gov.nl.ca/eccc/natural-areas/gis-data/?utm_source=chatgpt.com
 
@@ -28,7 +30,8 @@ tm_shape(eco_extract) +
   tm_polygons("ECO_NAME", palette = "Set3", title = "ecoregions") +
   tm_layout(frame = FALSE) +
   tm_shape(cores_coordinates_utm) +
-  tm_dots(size = 0.3)
+  tm_dots(size = 0.3) +
+  tm_text("lakeID")
 
 eco_summary <- eco_extract %>% 
   group_by(lakeID) %>% 

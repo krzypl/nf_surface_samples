@@ -3,58 +3,311 @@ title: "Report from 2025 fieldwork data"
 format: html
 editor: visual
 ---
-#Fieldwork
+Report date: 10 April 2026
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(terra)
+library(sf)
+library(tmap)
+
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+# Fieldwork  
 
 ## Sediment sampling
 
-We sampled 70 lakes collecting two sediment cores from each labelled A and B. From each sediment core two slices of sediments were collected from depths 0-1 cm and 1-2 cm. From the core A, we collected samples for DNA analyses. These samples were collected from 0-1 cm and have volume of 5 cc. Additionally, for each DNA we took one blank.  
+We sampled 70 lakes, collecting two sediment cores (labelled A and B) from each. From each sediment core, two sediment slices were collected from depths 0–1 cm and 1–2 cm. From core A, we collected samples for DNA analyses. These samples were collected from the 0–1 cm interval and have a volume of 5 cc. Additionally, for each DNA sample, we took one blank.
 
-Samples from core B 0-1 cm are in Fredericton. They will be used solely for chironomid analyses. Total volume is ~30 cc. Perhaps we will have leftovers from this.
+Samples from core B (0–1 cm) are in Fredericton. They will be used solely for chironomid analyses. Total volume is ~30 cc. We may still have some leftover material.
 
-Samples from core A 0-1, 1-2, core B 1-2 cm, and DNA samples are in Poznań (DNA samples are kept frozen, and the rest in fridge). From this we have already done:\
-- LOI550 and 950 (core A 0-1cm)  
-- sand grain counting (core A 0-1cm)  
+Samples from core A (0–1 cm and 1–2 cm), core B (1–2 cm), and DNA samples are in Poznań (DNA samples are kept frozen, and the rest in a refrigerator). From these, we have already completed:
 
-Subsamples taken already for  analyses in the future according to the label on bags:  
-From core A 0-1 cm
-- Chiro1 (2 cc)  
-- Chiro2 (2 cc)  
-- pollen (1 cc) 
-- cladocera (1 cc)  
-- diatoms (1 cc)  
-- CNS  (1 cc)  
-- C and O isotopes (1 cc) 
-- N and C isotopoec (1 cc)
+- LOI550 and 950 (core A 0–1 cm)
+- Sand grain counting (core A 0–1 cm)
 
-From core A 1-2 cm  
-- pollen sulfur isotopes (20 cc)  
+Subsamples prepared for future analyses (according to labels on bags):
 
-Samples Chiro1 and Chiro2 combined with leftover from core A samples 0-1 cm (very little material left) can be uses for preparation of XRF samples (Chiro1 and Chiro2 were collected before samples from core B 0-1 cm were sent to Fredericton for chironomid analyses).  
+From core A 0–1 cm:
 
-Apart from this we still have a lot of material from core B 1-2 cm as backup
+- Chiro1 (2 cc)
+- Chiro2 (2 cc)
+- pollen (1 cc)
+- Cladocera (1 cc)
+- diatoms (1 cc)
+- CNS (1 cc)
+- C and O isotopes (1 cc)
+- N and C isotopes (1 cc)
+
+From core A 1–2 cm:
+
+- pollen sulfur isotopes (20 cc)
+
+Samples Chiro1 and Chiro2, combined with leftover material from core A 0–1 cm (very little material remains), can be used for preparation of XRF samples. (Chiro1 and Chiro2 were collected before core B 0–1 cm samples were sent to Fredericton for chironomid analyses.)
+
+Apart from this, we still have a substantial amount of material from core B 1–2 cm as backup.
 
 ## Water sampling
 
-At coring sites, we took measurements with YSI instrument of water parameters. Two instruments were used; first was from Fredericton, second was from Poznań. For detail explanation of what was measured with what consult "fieldwaork_database.xlsx" file.
+At coring sites, we measured water parameters using a YSI instrument. Two instruments were used: one from Fredericton and one from Poznań. For a detailed explanation of which variables were measured with which instrument, consult the "fieldwork_database.xlsx" file.
 
-Along with this, water samples were taken approximately at the depth of several tens of cm. These were all kept cold expcept perhaps of shipping time (approx. 2-3 days). The analyses were done in RCP in Fredericton. 
+In addition, water samples were taken at several tens of centimetres depth. These were kept cold, except possibly during shipping (approximately 2–3 days). Analyses were conducted at RCP in Fredericton. 
 
+## Fieldwork notes
 
-TUTAJ DALEJ ZROBIC, NAJPIERW OPISAC, CO OPISYWALISMY W TERENIE, POTEM SAMA NALIZA DANYCH POPRZEDZONA MAPA.
+At each site, we recorded notes describing:  
+- local terrestrial vegetation  
+- water vegetation  
+- relief (very low/flat, low/rolling, low to moderate/rolling to hilly, moderate/hilly)  
 
-## 
+# Data analyses  
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Open data sources
+
+For data analyses, in addition to fieldwork and laboratory data, we used publicly available datasets. These include:
+
+- Climate data from WorldClim 2.1 (summer and winter temperatures, and summer and winter precipitation; we downloaded both seasonal averages and monthly means)
+- Surface and bedrock geology data from https://dnrmaps.gov.nl.ca/arcgis/rest/services/GeoAtlas
+- Ecoregions from https://www.gov.nl.ca/eccc/natural-areas/gis-data/
+- Elevation data were checked using GPS-derived values with the `get_elev_point()` function from the `elevatr` package  
+- Lake area and distance to the sea were measured from satellite imagery in QGIS  
+
+For geology and ecoregions, we extracted data within a 1000 m radius of each coring site. Multiple entries may therefore occur.
+
+## Lake distribution  
+
+Below are the maps showing distribution of lakes. 
+
 
 ```{r}
-1 + 1
-```
+temp_clip <- rast("data/temp_clip.tif")
 
-You can add options to executable code like this
+cores_coordinates <- read_delim("data/cores_coordinates.csv",
+                                delim = ";",
+                                escape_double = FALSE, trim_ws = TRUE)
+
+cores_coordinates_sf <- vect(cores_coordinates, geom = c("longitude_core", "latitude_core"), crs = "EPSG:4326")
+
+
+summaer_mean_map <- tm_shape(temp_clip) +
+  tm_raster(palette = "-spectral", 
+            title = "Min. temp = 10.3, max. temp = 15.4 (°C)",
+            breaks = seq(10.6, 15.4, length.out = 15)) +
+  tm_shape(cores_coordinates_sf) +
+  tm_dots(size = 0.3) +
+#  tm_text("lakeID", size = 0.7, auto.placement = TRUE) +
+  tm_layout(main.title = "Mean Summer Temperature", 
+            legend.outside = TRUE)
+  
+summaer_mean_map
+```
 
 ```{r}
-#| echo: false
-2 * 2
+ecoregions <- suppressMessages(
+  st_read("data/ecoregions/GNL_Ecoregions_2022_Newfoundland.shp")
+)
+
+ecoregions_map <- tm_shape(ecoregions) +
+  tm_polygons("SUB_NAME") +
+  tm_shape(cores_coordinates_sf) +
+  tm_dots(size = 0.3) +
+#  tm_text("lakeID", size = 0.7, auto.placement = TRUE) +
+  tm_layout(main.title = "Ecoregions", 
+            legend.outside = TRUE)
+  
+ecoregions_map
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Geology is very complex, and not readable without significant simplifications, which I have not done. For first order orientetion consult: chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.gov.nl.ca/em/files/Generalized-nl-map.pdf
+
+
+## Climate, morphometric and and topographic variables
+
+![](figures/env_data_raw_plot.svg)
+
+All lakes are small (with one exception of ~80 ha cored by Les and Karina), shallow (with only a few exceeding 5 m depth), and relatively close to the ocean (median distance is 1.794 km). All these variables are right-skewed.
+
+Climatic gradients are relatively well represented. However, since summer temperature is a key variable for the project, future fieldwork should focus on coring more lakes from the mid-range and lower end of the summer temperature gradient.
+
+## Geology
+
+### Surface geology 
+
+Surface geology classes are not standardized across Newfoundland. The best we can do is distinguish three broad classes for which we have consistent data across all sites. These were coded as dummy variables. We do not consider area, only presence/absence of each feature. For classification details, see the relevant script.
+
+```{r}
+surface_geology <- read_csv("data/surface_geology_matrix.csv")
+
+surface_long <- surface_geology %>%
+  select(!geology_type) %>%
+  pivot_longer(cols = exposed_bedrock:bog, names_to = "surface", values_to = "value") %>%
+  group_by(surface) %>%
+  summarize(count = sum(value))
+
+distribution_of_surface_geology <- 
+  ggplot(surface_long, aes(x = surface, y = count)) +
+  geom_col(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Surface type", y = "Number of occurances", title = "Surface geology counts")
+
+distribution_of_surface_geology
+```
+
+In most sites, peatlands occur around the lakes. Here, "bog" is shown only for sites where it appears as a distinct class in the surface geology map. 
+
+### Bedrock geology  
+
+As with surface geology, there is no standardized lithological classification for bedrock geology in Newfoundland. We distinguished five categories plus an "other" category. These were also converted to dummy variables.
+
+```{r}
+bedrock_geology <- read_csv("data/bedrock_geology_matrix.csv")
+
+bedrock_long <- bedrock_geology %>%
+  select(!geology_type) %>%
+  pivot_longer(cols = carbonate:others, names_to = "bedrock", values_to = "value") %>%
+  group_by(bedrock) %>%
+  summarize(count = sum(value))
+
+distribution_of_bedrock_geology <- 
+  ggplot(bedrock_long, aes(x = bedrock, y = count)) +
+  geom_col(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Bedrock type", y = "Number of occurances", title = "Bedrock geology counts")
+
+distribution_of_bedrock_geology
+```
+
+## Ecoregions
+
+We use ecoregions as provided in the original dataset, encoded as dummy variables.
+
+```{r}
+ecoregions_df <- read_csv("data/ecoregions_matrix.csv")
+
+ecoregions_long <- ecoregions_df %>%
+  pivot_longer(cols = `Western Newfoundland Forest`:`North Shore Forest`, names_to = "ecoregion", values_to = "value") %>%
+  group_by(ecoregion) %>%
+  summarize(count = sum(value))
+
+distribution_of_ecoregions <- 
+  ggplot(ecoregions_long, aes(x = ecoregion, y = count)) +
+  geom_col(fill = "steelblue") +
+  theme_minimal() +
+  labs(x = "Ecoregion", y = "Number of occurances", title = "Ecoregion counts") +
+  theme(axis.text.x = element_text(angle = 90))
+
+distribution_of_ecoregions
+```
+
+## Topography  
+
+```{r}
+relief <- read_csv("data/relief.csv") %>% 
+  group_by(relief) %>% 
+  summarise(n = n())
+
+relief$relief <- as.factor(relief$relief)
+
+levels(relief$relief) <- c("very low", "low", "low to moderate", "moderate")
+
+distribution_of_relief <- ggplot(relief, aes(x = relief, y = n)) +
+         geom_col(fill = "steelblue") +
+  labs(x = "Relief", y = "Number of occurances", title = "Relief counts")
+         
+distribution_of_relief 
+```
+
+## Water physical and chemical parameters along with sediment data
+
+Many variables from water chemistry analyses were below detection limits and therefore could not be used in downstream analyses. For Fe and Zn, where only a few values were missing, small values below detection limits were substituted to retain them in the analyses.
+
+Variables that could not be used due to almost all observations being below detection limits include phosphates, nitrate, and nitrite, among others. The reason is not entirely clear, given that lakes from the Burin Peninsula show relatively high nutrient concentrations. A possible explanation is that for the Burin Peninsula we measured total N and P rather than specific inorganic forms. It is therefore possible that the forms measured in the current study are genuinely low. If so, primary productivity in all studied lakes is likely low.
+
+```{r}
+water_chemistry <- read_csv("data/water_chemistry_for_distributions.csv")
+
+water_chemistry_long <- water_chemistry %>% 
+  pivot_longer(cols = Na:sand_grain,
+               names_to = "variable", values_to = "value")
+
+water_chemistry_distribution <- ggplot(water_chemistry_long) +
+  geom_histogram(aes(x = value)) +
+  facet_wrap(.~variable, scales = "free") +
+  labs(title = "Water and sediment data without transformation")
+  
+water_chemistry_distribution 
+```
+ 
+
+## Ordinations 
+
+### Data preparation
+
+Several variables provided by the RCP laboratory are derived from existing measurements and therefore introduce collinearity. These were excluded from ordination analyses (e.g., cation sum, hardness). In addition, some independent variables were also removed due to strong collinearity with others, including Cl (collinear with Na) and TOC (collinear with DOC).
+
+Many chemical, morphometric, and topographic variables are strongly right-skewed and required transformation prior to ordination. After transformation, distributions are improved and suitable for multivariate analyses.
+
+```{r}
+water_chemistry_trans <- read_rds("data/water_chemistry_for_ordinations.rds")
+
+water_chemistry_long_trans <- water_chemistry_trans %>% 
+  pivot_longer(cols = Na:sand_grain,
+               names_to = "variable", values_to = "value")
+
+water_chemistry_distribution_trans <- ggplot(water_chemistry_long_trans) +
+  geom_histogram(aes(x = value)) +
+  facet_wrap(.~variable, scales = "free") +
+  labs(title = "Water and sediment data transformed")
+  
+water_chemistry_distribution_trans 
+
+```
+
+![](figures/env_data_transformed_plot.svg)
+
+To the set of environmental variables, we also added spatial predictors, including linear x and y trends, as well as Moran’s Eigenvector Maps (MEM), calculated after detrending xy coordinates. This ensures that MEMs represent spatial structure independent of linear trends. MEM variables were forward-selected after running RDA. Ultimately, two MEM variables were retained: one representing fine-scale spatial patterns (MEM fine) and one representing broad-scale patterns (MEM broad).
+
+### PCA
+
+![](figures/water_chemistry_pca.svg)
+The first two PCA axes explain approximately 45% of the variance. The biplot is shown using scaling appropriate mainly for interpreting relationships among variables.
+
+Overall, lakes with higher pH also tend to have higher concentrations of Ca and Mg and higher conductivity. Interestingly, there is no strong relationship between these lakes and high CaCO₃ content in sediments. Instead, CaCO₃ is associated with lakes with higher dissolved oxygen (possibly better-ventilated systems) and higher sand grain counts. Lakes with low dissolved oxygen, low LOI950, and low sand content tend to have higher turbidity, DOC concentrations, and LOI550. Some of these lakes also show elevated Na, K, Zn, Mn, and Fe concentrations.
+
+Importantly, no clustering of site scores is observed, suggesting no distinct groups of lakes in terms of water chemistry or sediment characteristics. This dataset therefore appears well suited for use as a training set.
+
+### RDA
+
+
+Selection of explanatory variables for RDA was based on forward selection. The final model includes nine variables: carbonate, y-coordinate, depth, x-coordinate, MEM_broad, MEM_fine, Northern Peninsula Forest, Maritime Barrens, and Eastern Hyper-Oceanic Barrens.
+
+Importantly, no climate variables were selected, suggesting that climate does not directly explain a significant portion of variation in water chemistry or sediment variables in this dataset. Also, dtto was not selected in forward selection. This contrasts with the Burin Peninsula dataset, where dtto played a crucial role.
+
+The full RDA model explains 37.5% of the variance. Partial RDA results show that no single variable explains a large portion of variance independently; the strongest single contributor is carbonate (5.13%), indicating that bedrock type is the most influential factor.
+
+The complete pRDA results look like this: 
+
+![](figures/prda_plot.svg)
+
+For Venn diagram, I grouped variables into three categories:
+
+1. Spatial patterns (xy trends, MEM_fine, MEM_broad)
+2. Local environment (carbonate, Northern Peninsula Forest, Maritime Barrens, Eastern Hyper-Oceanic Barrens)
+3. Morphometry (depth)
+
+Spatial and local environmental variables each explain over 10% of variance independently but also share substantial overlap (>10%). In contrast, morphometric variables alone explain little variance and do not interact strongly with other groups.  
+
+![](figures/venn_plot_rda.svg)
+
+The RDA biplot shows that high pH, Ca, Mg, and conductivity are associated with lakes in northwestern Newfoundland on carbonate bedrock. Conversely, lakes in the southeast, within the Maritime Barrens, show opposite conditions. Lakes in the Northern Peninsula Forest tend to have higher Na and K, while those in the Eastern Hyper-Oceanic Barrens show higher Zn, Mn, and Fe concentrations. Lakes in these regions also tend to have higher turbidity and DOC. LOI950, dissolved oxygen, sand content, and LOI550 are less well explained by the environmental variables.
+
+The first two RDA axes capture a substantial portion of variance observed in the PCA, indicating that major gradients in water chemistry are well explained by environmental predictors, although some unexplained variation remains.
+
+![](figures/water_chemistry_rda_vectors_only.svg)
+Finally, the RDA biplot including both explanatory variables and site scores is shown below (note that in the final version, dummy-variable vectors will be replaced by centroids for clarity).
+
+![](figures/water_chemistry_rda_vectors_and_sites.svg)

@@ -83,9 +83,14 @@ sediment_data <- read_excel("data/lake_sediment_data.xlsx")
 
 
 #zrezygnowalem z BoxCoxa, zeby indywidualnie dobrac transformacje
-water_chemistry_boxcox <- water_chemistry_red2 %>%
+water_chemistry_boxcox_prep <- water_chemistry_red2 %>%
   left_join(field_data_2add, by = c("LakeID" = "lakeID")) %>% 
-  left_join(sediment_data, by = c("LakeID" = "lakeID")) %>% 
+  left_join(sediment_data, by = c("LakeID" = "lakeID"))
+
+write_csv(water_chemistry_boxcox_prep, "data/water_chemistry_for_distributions.csv")
+
+
+water_chemistry_boxcox <- water_chemistry_boxcox_prep %>%
 #  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x))))
   mutate(Na = log(Na),
          K = log(K),
@@ -159,6 +164,9 @@ water_chemistry_pca_plot <- ggplot() +
   theme(legend.position = "right") +
   coord_fixed()
 
+ggsave("figures/water_chemistry_pca.svg",
+       plot = water_chemistry_pca_plot, width = 8, height = 6)
+
 #RDA ----
 
 elevation_gps <- read_excel("data/elevation_gps.xlsx") %>% 
@@ -195,6 +203,9 @@ env_data_raw_plot <- env_data_prep %>%
   geom_histogram(aes(x = value)) +
 facet_wrap(.~variable, scales = "free")
 
+ggsave("figures/env_data_raw_plot.svg",
+       plot = env_data_raw_plot, width = 8, height = 6)
+
 env_data <- env_data_prep %>%
 #  mutate(across(-1, ~ BoxCox(.x, lambda = BoxCox.lambda(.x)))) %>% 
   mutate(area_ha = log(area_ha),
@@ -211,6 +222,18 @@ env_data <- env_data_prep %>%
   left_join(relief, by = c("lakeID" = "lakeID")) %>%
   select(-lakeID)
 
+env_data_transformed_plot <- env_data %>% 
+  select(area_ha, depth, dtto, elevation) %>% 
+  mutate(lakeID = lakeID) %>%
+  pivot_longer(!lakeID, names_to = "variable", values_to = "value") %>% 
+  ggplot() +
+  geom_histogram(aes(x = value)) +
+  facet_wrap(.~variable, scales = "free")
+
+ggsave("figures/env_data_transformed_plot.svg",
+       plot = env_data_transformed_plot, width = 8, height = 6)
+
+
 rda_all <- rda(water_chemistry_zscore ~ ., data = env_data)
 summary(rda_all)
 (R2a_all <- RsquareAdj(rda_all)$adj.r.squared)
@@ -220,7 +243,7 @@ set.seed(12)
 step_forward <- ordistep(mod0,
                          scope = formula(rda_all),
                          direction = "forward",
-                         permutations = how(nperm = 999) ) #forward selection retains carbonate, june_temperature, depth
+                         permutations = how(nperm = 999) ) 
 (RsquareAdj(step_forward)$adj.r.squared)  
 
 
@@ -319,6 +342,8 @@ rda_tprep <- tibble(
 prda_plot <- ggplot(filter(rda_tprep, Metric == "prop_of_var_explained")) +
   geom_col(aes(x = variable, y = value))
 
+ggsave("figures/prda_plot.svg",
+       plot = prda_plot, width = 8, height = 6)
 
 #variation partitioning ----
 spatial_patterns <- env_variables_forward_selected %>% 
@@ -342,14 +367,14 @@ varpart_model <- varpart(
 )
 
 
-
+svg("figures/venn_plot_rda.svg", width = 8, height = 6)
 plot(
   varpart_model,
   bg = c("skyblue","orange","forestgreen"),
   Xnames = c("Spatial patterns","Local environmant","Morphometric parameters"),
   id.size = 1.2
 )
-
+dev.off()
 
 #RDA biplot ----
 rda_fort <- fortify(rda_fs, axes(1,2), scaling = "species") # First and second axes
@@ -360,9 +385,14 @@ rda_water_chemistry_sp <- rda_fort %>%
 rda_expl_var <- rda_fort %>% 
   filter(score == "biplot")
 
-rda_ve_prep_sites <- rda_fort_sc_sites$CCA$eig / rda_fort_sc_sites$tot.chi*100
-(rda1_ve <- round(((rda_ve_prep / sum(rda_ve_prep))[c(1)] * R2a_all_fs) * 100, digits = 1))
-(rda2_ve <- round(((rda_ve_prep / sum(rda_ve_prep))[c(2)] * R2a_all_fs) * 100, digits = 1))
+rda_sites <- rda_fort %>% 
+  filter(score == "sites")
+
+
+rda_ve_prep_sites <- rda_fs$CCA$eig / rda_fs$tot.chi*100
+(rda1_ve <- round(((rda_ve_prep_sites / sum(rda_ve_prep_sites))[c(1)] * R2a_all_fs) * 100, digits = 1))
+(rda2_ve <- round(((rda_ve_prep_sites / sum(rda_ve_prep_sites))[c(2)] * R2a_all_fs) * 100, digits = 1))
+
 
 rda_plot_vectors_only <- ggplot() +
   labs(y = paste("RDA2 (", rda2_ve, "%)", sep = ""), 
@@ -394,33 +424,30 @@ rda_plot_vectors_only <- ggplot() +
   scale_size(range = 2) +
   coord_equal()
 
-rda_fort_sc_sites <- fortify(rda_fs, axes(1,2), scaling = "sites")
 
-rda_sites_expl_var <- rda_fort_sc_sites %>% 
-  filter(score == "biplot")
+ggsave("figures/water_chemistry_rda_vectors_only.svg",
+       plot = rda_plot_vectors_only, width = 8, height = 6)
 
-rda_sites <- rda_fort_sc_sites %>% 
-  filter(score == "sites")
 
 rda_plot_vectors_and_sites <- ggplot() +
   labs(y = paste("RDA2 (", rda2_ve, "%)", sep = ""), 
        x = paste("RDA1 (", rda1_ve, "%)", sep = "")) +
   
   geom_point(data = rda_sites,
-               color = "black",
-               aes(x = rda1, y = rda2)) +
+             color = "black",
+             aes(x = rda1, y = rda2)) +
   
   ggrepel::geom_text_repel(data = rda_sites, color = "black",
                            size = 4, segment.alpha = 0,
                            aes(x = rda1, y = rda2, label = lakeID),
                            max.overlaps = 30) +
   
-  geom_segment(data = rda_sites_expl_var,
+  geom_segment(data = rda_expl_var,
                color = "darkblue", linewidth = 1,
                aes(x = 0, y = 0, xend = rda1, yend = rda2),
                arrow = grid::arrow(length = grid::unit(0.20, "cm"))) +
   
-  ggrepel::geom_text_repel(data = rda_sites_expl_var, color = "darkblue",
+  ggrepel::geom_text_repel(data = rda_expl_var, color = "darkblue",
                            size = 5, segment.alpha = 0,
                            aes(x = rda1, y = rda2, label = label)) +
   
@@ -430,3 +457,7 @@ rda_plot_vectors_and_sites <- ggplot() +
   theme_bw() +
   scale_size(range = 2) +
   coord_equal()
+
+
+ggsave("figures/water_chemistry_rda_vectors_and_sites.svg",
+       plot = rda_plot_vectors_and_sites, width = 8, height = 6)
